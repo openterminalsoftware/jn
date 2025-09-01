@@ -1,7 +1,9 @@
 package main
 
 import (
+	"jn/commands/new"
 	"jn/prompts"
+	"jn/utils"
 	"os"
 )
 
@@ -14,5 +16,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	// arguments := os.Args[1:]
+	arguments := os.Args[1:]
+
+	if utils.Contains([]string{"new", "n"}, arguments[0]) {
+		new.New()
+	} else {
+		prompts.Help()
+		os.Exit(1)
+	}
 }
