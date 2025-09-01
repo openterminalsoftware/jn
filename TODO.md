@@ -16,8 +16,4 @@ TODO list, list of commands, functionality, etc to be finished or implemented in
 - [ ] Implement `version` command
 - [ ] Implement `config` command
 
-## Functionality
-- [ ] Implement markdown parsing
-- [ ] Implement configuration and configuration file parsing
-
 More to come soon.
