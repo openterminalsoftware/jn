@@ -15,7 +15,6 @@ func Help() {
 	fmt.Println(colors.Bold + colors.Cyan + "  help" + colors.Reset + colors.Green + "            Alias: h" + colors.Reset)
 	fmt.Println(colors.Bold + colors.Cyan + "  new" + colors.Reset + colors.Green + "             Alias: n" + colors.Reset)
 	fmt.Println(colors.Bold + colors.Cyan + "  preview" + colors.Reset + colors.Green + "         Alias: p" + colors.Reset)
-	fmt.Println(colors.Bold + colors.Cyan + "  publish" + colors.Reset + colors.Green + "         Alias: pub" + colors.Reset)
 	fmt.Println(colors.Bold + colors.Cyan + "  delete" + colors.Reset + colors.Green + "          Alias: d" + colors.Reset)
 	fmt.Println(colors.Bold + colors.Cyan + "  list" + colors.Reset + colors.Green + "            Alias: l" + colors.Reset)
 	fmt.Println(colors.Bold + colors.Cyan + "  search" + colors.Reset + colors.Green + "          Alias: s" + colors.Reset)
