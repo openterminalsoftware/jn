@@ -59,7 +59,7 @@ func TextEditor(prompt string) string {
 		}
 
 		// redraw current line
-		fmt.Print("\r\033[K" + colors.DarkGray + "| " + colors.Reset + highlightMarkdown(string(line)))
+		fmt.Print("\r\033[K" + colors.DarkGray + "| " + colors.Reset + HighlightMarkdown(string(line)))
 	}
 
 	return strings.Join(content, "\n")

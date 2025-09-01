@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func highlightMarkdown(line string) string {
+func HighlightMarkdown(line string) string {
 	if strings.HasPrefix(line, "#") {
 		return colors.Blue + line + colors.Reset
 	}

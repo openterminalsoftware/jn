@@ -23,7 +23,7 @@ func main() {
 	if utils.Contains([]string{"new", "n"}, command) {
 		new.New()
 	} else if utils.Contains([]string{"preview", "p"}, command) {
-		preview.Preview() // Initialize preview command
+		preview.Preview(os.Args[2])
 	} else {
 		prompts.Help()
 		os.Exit(1)
