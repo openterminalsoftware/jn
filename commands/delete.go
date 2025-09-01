@@ -1,4 +1,4 @@
-package delete
+package commands
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 )
 
 func Delete(file string) error {
-	// Get vault path from config, similar to new.go
 	var config map[string]interface{}
 	configPath := os.ExpandEnv("$HOME/.jn/config.json")
 	if _, err := os.Stat(configPath); err == nil {
@@ -47,7 +46,6 @@ func Delete(file string) error {
 		fullPath = filepath.Join(vaultPath, file)
 	}
 
-	// Expand environment variables in fullPath in case it contains $HOME or ~
 	fullPath = os.ExpandEnv(fullPath)
 	if strings.HasPrefix(fullPath, "~/") {
 		homeDir, err := os.UserHomeDir()

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"jn/commands/delete"
-	"jn/commands/new"
-	"jn/commands/preview"
+	"jn/commands"
 	"jn/prompts"
 	"jn/utils"
 	"os"
@@ -22,15 +20,15 @@ func main() {
 	command := os.Args[1]
 
 	if utils.Contains([]string{"new", "n"}, command) {
-		new.New()
+		commands.New()
 	} else if utils.Contains([]string{"preview", "p"}, command) {
-		preview.Preview(os.Args[2])
+		commands.Preview(os.Args[2])
 	} else if utils.Contains([]string{"delete", "d"}, command) {
 		if len(os.Args) < 3 {
 			prompts.Help()
 			os.Exit(1)
 		}
-		delete.Delete(os.Args[2])
+		commands.Delete(os.Args[2])
 	} else {
 		prompts.Help()
 		os.Exit(1)
