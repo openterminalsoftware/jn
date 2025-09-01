@@ -19,17 +19,28 @@ func highlightMarkdown(line string) string {
 		return colors.Blue + line + colors.Reset
 	}
 
-	boldRe := regexp.MustCompile(`(\**|__)(.*?)$1`)
-	line = boldRe.ReplaceAllString(line, colors.Bold+"$2"+colors.Reset)
+	boldAsteriskRe := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	line = boldAsteriskRe.ReplaceAllString(line, colors.Bold+"$1"+colors.Reset)
 
-	italicRe := regexp.MustCompile(`(\*|_)([^*_]+?)$1`)
-	line = italicRe.ReplaceAllString(line, colors.Italic+"$2"+colors.Reset)
+	boldUnderscoreRe := regexp.MustCompile(`__([^_]+)__`)
+	line = boldUnderscoreRe.ReplaceAllString(line, colors.Bold+"$1"+colors.Reset)
+
+	italicAsteriskRe := regexp.MustCompile(`\*([^*]+)\*`)
+	line = italicAsteriskRe.ReplaceAllString(line, colors.Italic+"$1"+colors.Reset)
+
+	italicUnderscoreRe := regexp.MustCompile(`_([^_]+)_`)
+	line = italicUnderscoreRe.ReplaceAllString(line, colors.Italic+"$1"+colors.Reset)
+
+	underlineRe := regexp.MustCompile(`~~([^~]+)~~`)
+	line = underlineRe.ReplaceAllString(line, colors.Underline+"$1"+colors.Reset)
 
 	codeRe := regexp.MustCompile("`([^`]+)`")
 	line = codeRe.ReplaceAllString(line, colors.Cyan+"$1"+colors.Reset)
 
 	linkRe := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
-	line = linkRe.ReplaceAllString(line, colors.Magenta+"[$1]"+colors.Reset+"("+colors.Blue+"$2"+colors.Reset+")")
+	line = linkRe.ReplaceAllString(line,
+		colors.Magenta+"[$1]"+colors.Reset+
+			"("+colors.Blue+"$2"+colors.Reset+")")
 
 	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ") {
 		return colors.Green + line + colors.Reset
@@ -46,14 +57,11 @@ func highlightMarkdown(line string) string {
 func enableRawMode(fd int) (*syscall.Termios, error) {
 	var oldState syscall.Termios
 
-	// macOS / BSD → TIOCGETA / TIOCSETA
-	// Linux → TCGETS / TCSETS
 	const (
 		TCGET = syscall.TIOCGETA
 		TCSET = syscall.TIOCSETA
 	)
 
-	// Get current termios
 	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
 		uintptr(TCGET), uintptr(unsafe.Pointer(&oldState)), 0, 0, 0)
 	if errno != 0 {
@@ -104,7 +112,7 @@ func TextEditor() string {
 	var line []rune
 
 	buf := make([]byte, 1)
-	fmt.Print(colors.DarkGray + "Type your markdown ('.exit' to save & quit)" + colors.Reset + "\r\n")
+	fmt.Print(colors.DarkGray + "Type your markdown \".exit\"to save & quit" + colors.Reset + "\r\n")
 
 	for {
 		_, err := os.Stdin.Read(buf)
