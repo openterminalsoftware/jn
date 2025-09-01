@@ -4,99 +4,218 @@ import (
 	"bufio"
 	"fmt"
 	"jn/colors"
+	"jn/utils"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
+	"unsafe"
 )
 
-func New() {
-	configPath := os.ExpandEnv("$HOME/.jn/config.json")
-	configDir := filepath.Dir(configPath)
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Println("Creating ~/.jn/config.json")
-		if err := os.MkdirAll(configDir, 0755); err != nil {
-			fmt.Printf("Failed to create directory: %v\n", err)
-			return
-		}
-		f, err := os.Create(configPath)
-		if err != nil {
-			fmt.Printf("Failed to create config file: %v\n", err)
-			return
-		}
-		f.Close()
+func highlightMarkdown(line string) string {
+	if strings.HasPrefix(line, "#") {
+		return colors.Blue + line + colors.Reset
 	}
 
-	fmt.Println(colors.DarkGray + "Using ~/.jn/config.json" + colors.Reset)
-	makeMarkdownEntry()
+	boldRe := regexp.MustCompile(`(\**|__)(.*?)$1`)
+	line = boldRe.ReplaceAllString(line, colors.Bold+"$2"+colors.Reset)
+
+	italicRe := regexp.MustCompile(`(\*|_)([^*_]+?)$1`)
+	line = italicRe.ReplaceAllString(line, colors.Italic+"$2"+colors.Reset)
+
+	codeRe := regexp.MustCompile("`([^`]+)`")
+	line = codeRe.ReplaceAllString(line, colors.Cyan+"$1"+colors.Reset)
+
+	linkRe := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
+	line = linkRe.ReplaceAllString(line, colors.Magenta+"[$1]"+colors.Reset+"("+colors.Blue+"$2"+colors.Reset+")")
+
+	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ") {
+		return colors.Green + line + colors.Reset
+	}
+	if strings.HasPrefix(line, ">") {
+		return colors.Yellow + line + colors.Reset
+	}
+	if strings.HasPrefix(line, "```") {
+		return colors.Cyan + line + colors.Reset
+	}
+	return line
 }
 
-func TextEditor(initialContent string) (string, error) {
-	fmt.Println("Enter your markdown content below. Type '.exit' on a new line to save and exit.")
-	fmt.Println(colors.DarkGray + "------------------------------------------------------------" + colors.Reset)
-	if initialContent != "" {
-		fmt.Println(initialContent)
+func enableRawMode(fd int) (*syscall.Termios, error) {
+	var oldState syscall.Termios
+
+	// macOS / BSD → TIOCGETA / TIOCSETA
+	// Linux → TCGETS / TCSETS
+	const (
+		TCGET = syscall.TIOCGETA
+		TCSET = syscall.TIOCSETA
+	)
+
+	// Get current termios
+	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(TCGET), uintptr(unsafe.Pointer(&oldState)), 0, 0, 0)
+	if errno != 0 {
+		return nil, errno
 	}
-	var lines []string
-	reader := bufio.NewReader(os.Stdin)
+
+	newState := oldState
+	newState.Lflag &^= syscall.ICANON | syscall.ECHO
+	newState.Iflag &^= syscall.ICRNL
+	newState.Oflag &^= syscall.OPOST
+	newState.Cc[syscall.VMIN] = 1
+	newState.Cc[syscall.VTIME] = 0
+
+	_, _, errno = syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(TCSET), uintptr(unsafe.Pointer(&newState)), 0, 0, 0)
+	if errno != 0 {
+		return nil, errno
+	}
+
+	return &oldState, nil
+}
+
+func disableRawMode(fd int, oldState *syscall.Termios) {
+	const TCSET = syscall.TIOCSETA
+	syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(TCSET), uintptr(unsafe.Pointer(oldState)), 0, 0, 0)
+}
+
+func TextEditor() string {
+	fd := int(os.Stdin.Fd())
+	oldState, err := enableRawMode(fd)
+	if err != nil {
+		fmt.Println("Failed to enable raw mode:", err)
+		os.Exit(1)
+	}
+	defer disableRawMode(fd, oldState)
+
+	// Handle Ctrl+C clean exit
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		disableRawMode(fd, oldState)
+		os.Exit(0)
+	}()
+
+	var content []string
+	var line []rune
+
+	buf := make([]byte, 1)
+	fmt.Print(colors.DarkGray + "Type your markdown ('.exit' to save & quit)" + colors.Reset + "\r\n")
+
 	for {
-		fmt.Print(colors.DarkGray + "| " + colors.Reset)
-		line, err := reader.ReadString('\n')
+		_, err := os.Stdin.Read(buf)
 		if err != nil {
-			return "", err
-		}
-		line = strings.TrimRight(line, "\r\n")
-		if line == ".exit" || line == ":wq" {
 			break
 		}
-		lines = append(lines, line)
+		ch := buf[0]
+
+		if ch == 3 { // Ctrl+C
+			break
+		} else if ch == 13 { // Enter
+			strLine := string(line)
+			if strLine == ".exit" {
+				break
+			}
+			content = append(content, strLine)
+			fmt.Print("\r\n")
+			line = []rune{}
+		} else if ch == 127 { // Backspace
+			if len(line) > 0 {
+				line = line[:len(line)-1]
+				fmt.Print("\b \b")
+			}
+		} else {
+			line = append(line, rune(ch))
+		}
+
+		// redraw current line
+		fmt.Print("\r\033[K" + colors.DarkGray + "| " + colors.Reset + highlightMarkdown(string(line)))
 	}
-	return strings.Join(lines, "\n"), nil
+
+	return strings.Join(content, "\n")
 }
 
-func makeMarkdownEntry() {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Entry name: ")
-	fileNameInput, _ := reader.ReadString('\n')
-	fileName := strings.TrimSpace(fileNameInput)
-	if fileName == "" {
-		fmt.Println("File name cannot be empty")
+// New is an importable function to create a new entry interactively.
+func New() {
+	content := TextEditor()
+	if strings.TrimSpace(content) == "" {
+		fmt.Println("\nAborted, empty content.")
 		return
 	}
-	if !strings.HasSuffix(fileName, ".md") {
-		fileName += ".md"
+
+	var config map[string]interface{}
+	configPath := os.ExpandEnv("$HOME/.jn/config.json")
+	if _, err := os.Stat(configPath); err == nil {
+		config = utils.ParseConfig(configPath)
 	}
 
-	vaultDir := os.ExpandEnv("$HOME/.jn/vault")
-	if err := os.MkdirAll(vaultDir, 0755); err != nil {
-		fmt.Printf("Failed to create vault directory: %v\n", err)
-		return
-	}
-	fullPath := filepath.Join(vaultDir, fileName)
-
-	var initialContent string
-	if _, err := os.Stat(fullPath); err == nil {
-		data, err := os.ReadFile(fullPath)
-		if err == nil {
-			initialContent = string(data)
+	var vaultPath string
+	if config != nil {
+		vaultPathIface, ok := config["vault"]
+		if ok {
+			vaultPath, _ = vaultPathIface.(string)
 		}
 	}
 
-	content, err := TextEditor(initialContent)
-	if err != nil {
-		fmt.Printf("Error in editor: %v\n", err)
+	if vaultPath == "" {
+		vaultPath = os.ExpandEnv("$HOME/.jn/vault") // Default value
+	} else if strings.HasPrefix(vaultPath, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Println("Failed to get home directory:", err)
+			return
+		}
+		vaultPath = filepath.Join(homeDir, vaultPath[2:])
+	} else if strings.HasPrefix(vaultPath, "$HOME/") {
+		vaultPath = os.ExpandEnv(vaultPath)
+	}
+
+	if err := os.MkdirAll(vaultPath, 0755); err != nil {
+		fmt.Println("Failed to create vault directory:", err)
 		return
 	}
 
-	// Write content to file
-	err = os.WriteFile(fullPath, []byte(content), 0644)
-	if err != nil {
-		fmt.Printf("Failed to write markdown file: %v\n", err)
+	fmt.Print("\nEnter a filename for your note: ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("\nError reading filename: %v. Aborting.\n", err)
+		} else {
+			fmt.Println("\nNo filename entered. Aborting.")
+		}
+		return
+	}
+	fileName := scanner.Text()
+
+	if strings.TrimSpace(fileName) == "" {
+		fmt.Println("\nFilename cannot be empty. Aborting.")
 		return
 	}
 
-	fmt.Println("Entry created successfully:", fullPath)
-}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".md") {
+		fileName = fileName + ".md"
+	}
 
-func main() {
-	New()
+	fullPath := filepath.Join(vaultPath, fileName)
+	if _, err := os.Stat(fullPath); err == nil {
+		base := strings.TrimSuffix(fileName, ".md")
+		for i := 1; ; i++ {
+			newName := fmt.Sprintf("%s-%d.md", base, i)
+			fullPath = filepath.Join(vaultPath, newName)
+			if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+				break
+			}
+		}
+	}
+
+	err := os.WriteFile(fullPath, []byte(content), 0644)
+	if err != nil {
+		fmt.Println("Failed to save:", err)
+		return
+	}
+	fmt.Println("\nEntry saved at:", fullPath)
 }
