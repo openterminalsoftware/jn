@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"jn/commands"
 	"jn/prompts"
 	"jn/utils"
@@ -29,6 +30,8 @@ func main() {
 			os.Exit(1)
 		}
 		commands.Delete(os.Args[2])
+	} else if utils.Contains([]string{"list", "l"}, command) {
+		fmt.Println(commands.List())
 	} else {
 		prompts.Help()
 		os.Exit(1)
