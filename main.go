@@ -13,10 +13,11 @@ const (
 	Magenta = "\033[35m"
 	Cyan    = "\033[36m"
 	Reset   = "\033[0m"
+	Bold    = "\033[1m"
 )
 
 func help() {
-	fmt.Println("jn. ")
+	fmt.Println(Bold + Magenta + "jn" + Reset)
 }
 
 func main() {
