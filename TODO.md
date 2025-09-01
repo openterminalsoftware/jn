@@ -7,9 +7,9 @@ TODO list, list of commands, functionality, etc to be finished or implemented in
 - [x] Implement `help` command
 - [x] Implement `new` command
 - [x] Implement `preview` command
+- [x] Implement `delete` command
 
 ### Not finished
-- [ ] Implement `delete` command
 - [ ] Implement `list` command
 - [ ] Implement `search` command
 - [ ] Implement `version` command

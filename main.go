@@ -1,6 +1,7 @@
 package main
 
 import (
+	"jn/commands/delete"
 	"jn/commands/new"
 	"jn/commands/preview"
 	"jn/prompts"
@@ -24,6 +25,12 @@ func main() {
 		new.New()
 	} else if utils.Contains([]string{"preview", "p"}, command) {
 		preview.Preview(os.Args[2])
+	} else if utils.Contains([]string{"delete", "d"}, command) {
+		if len(os.Args) < 3 {
+			prompts.Help()
+			os.Exit(1)
+		}
+		delete.Delete(os.Args[2])
 	} else {
 		prompts.Help()
 		os.Exit(1)
