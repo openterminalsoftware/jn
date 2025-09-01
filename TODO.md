@@ -9,11 +9,27 @@ TODO list, list of commands, functionality, etc to be finished or implemented in
 - [x] Implement `preview` command
 
 ### Not finished
-- [ ] Implement `publish` command
 - [ ] Implement `delete` command
 - [ ] Implement `list` command
 - [ ] Implement `search` command
 - [ ] Implement `version` command
 - [ ] Implement `config` command
+
+## Planning to implement later
+
+* `publish`
+  ```
+  publish
+
+  The "publish" command would be used to publicly publish a note onto the "jn" website.
+  -----------------------------------------------------------------------------
+  || TODO: Make a jn website, make an API, implement publish functionality   ||
+  -----------------------------------------------------------------------------
+
+  Usage: jn publish <file_path>
+  Flags:
+    -d, --delete     Delete the note after publishing
+    -t, --title      Set the title of the note
+  ```
 
 More to come soon.
