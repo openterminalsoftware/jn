@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
-	"unsafe"
 )
 
 func highlightMarkdown(line string) string {
@@ -19,25 +17,20 @@ func highlightMarkdown(line string) string {
 		return colors.Blue + line + colors.Reset
 	}
 
-	boldAsteriskRe := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	boldAsteriskRe := regexp.MustCompile(`\*\*([^\*]+)\*\*`)
 	line = boldAsteriskRe.ReplaceAllString(line, colors.Bold+"$1"+colors.Reset)
-
 	boldUnderscoreRe := regexp.MustCompile(`__([^_]+)__`)
 	line = boldUnderscoreRe.ReplaceAllString(line, colors.Bold+"$1"+colors.Reset)
 
-	italicAsteriskRe := regexp.MustCompile(`\*([^*]+)\*`)
+	italicAsteriskRe := regexp.MustCompile(`\*([^\*]+)\*`)
 	line = italicAsteriskRe.ReplaceAllString(line, colors.Italic+"$1"+colors.Reset)
-
 	italicUnderscoreRe := regexp.MustCompile(`_([^_]+)_`)
 	line = italicUnderscoreRe.ReplaceAllString(line, colors.Italic+"$1"+colors.Reset)
-
-	underlineRe := regexp.MustCompile(`~~([^~]+)~~`)
-	line = underlineRe.ReplaceAllString(line, colors.Underline+"$1"+colors.Reset)
 
 	codeRe := regexp.MustCompile("`([^`]+)`")
 	line = codeRe.ReplaceAllString(line, colors.Cyan+"$1"+colors.Reset)
 
-	linkRe := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
+	linkRe := regexp.MustCompile(`\[(.*?)](.*?)`)
 	line = linkRe.ReplaceAllString(line,
 		colors.Magenta+"[$1]"+colors.Reset+
 			"("+colors.Blue+"$2"+colors.Reset+")")
@@ -52,42 +45,6 @@ func highlightMarkdown(line string) string {
 		return colors.Cyan + line + colors.Reset
 	}
 	return line
-}
-
-func enableRawMode(fd int) (*syscall.Termios, error) {
-	var oldState syscall.Termios
-
-	const (
-		TCGET = syscall.TIOCGETA
-		TCSET = syscall.TIOCSETA
-	)
-
-	_, _, errno := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		uintptr(TCGET), uintptr(unsafe.Pointer(&oldState)), 0, 0, 0)
-	if errno != 0 {
-		return nil, errno
-	}
-
-	newState := oldState
-	newState.Lflag &^= syscall.ICANON | syscall.ECHO
-	newState.Iflag &^= syscall.ICRNL
-	newState.Oflag &^= syscall.OPOST
-	newState.Cc[syscall.VMIN] = 1
-	newState.Cc[syscall.VTIME] = 0
-
-	_, _, errno = syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		uintptr(TCSET), uintptr(unsafe.Pointer(&newState)), 0, 0, 0)
-	if errno != 0 {
-		return nil, errno
-	}
-
-	return &oldState, nil
-}
-
-func disableRawMode(fd int, oldState *syscall.Termios) {
-	const TCSET = syscall.TIOCSETA
-	syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
-		uintptr(TCSET), uintptr(unsafe.Pointer(oldState)), 0, 0, 0)
 }
 
 func TextEditor() string {
@@ -112,7 +69,7 @@ func TextEditor() string {
 	var line []rune
 
 	buf := make([]byte, 1)
-	fmt.Print(colors.DarkGray + "Type your markdown \".exit\"to save & quit" + colors.Reset + "\r\n")
+	fmt.Print(colors.DarkGray + "Type your markdown \".exit\" to save & quit" + colors.Reset + "\r\n")
 
 	for {
 		_, err := os.Stdin.Read(buf)
