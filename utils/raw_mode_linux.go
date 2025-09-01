@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"os" // Added import
 	"syscall"
 	"unsafe"
 )
@@ -41,4 +42,14 @@ func disableRawMode(fd int, oldState *syscall.Termios) {
 	const TCSET = syscall.TCSETS
 	syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd),
 		uintptr(TCSET), uintptr(unsafe.Pointer(oldState)), 0, 0, 0)
+}
+
+// ReadChar reads a single character from stdin.
+func ReadChar() (rune, int, error) {
+	var buf [1]byte
+	n, err := os.Stdin.Read(buf[:])
+	if err != nil {
+		return 0, 0, err
+	}
+	return rune(buf[0]), n, nil
 }

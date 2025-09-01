@@ -32,6 +32,8 @@ func main() {
 		commands.Delete(os.Args[2])
 	} else if utils.Contains([]string{"list", "l"}, command) {
 		fmt.Println(commands.List())
+	} else if utils.Contains([]string{"search", "s"}, command) {
+		commands.Search()
 	} else {
 		prompts.Help()
 		os.Exit(1)

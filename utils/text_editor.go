@@ -10,19 +10,19 @@ import (
 
 func TextEditor(prompt string) string {
 	fd := int(os.Stdin.Fd())
-	oldState, err := enableRawMode(fd)
+	oldState, err := EnableRawMode(fd)
 	if err != nil {
 		fmt.Println("Failed to enable raw mode:", err)
 		os.Exit(1)
 	}
-	defer disableRawMode(fd, oldState)
+	defer DisableRawMode(fd, oldState)
 
 	// Handle Ctrl+C clean exit
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		disableRawMode(fd, oldState)
+		DisableRawMode(fd, oldState)
 		os.Exit(0)
 	}()
 
