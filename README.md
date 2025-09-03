@@ -31,6 +31,7 @@ Create a configuration file at `$HOME/.jn/config.json`, current supported fields
 {
     "vault": "~/.jn/vault"
 }
+```
 
 ## Commands
 
