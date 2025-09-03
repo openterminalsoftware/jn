@@ -48,38 +48,7 @@ func Search() {
 		config = utils.ParseConfig(configPath)
 	}
 
-	var vaultPath string
-	if config != nil {
-		if vaultPathIface, ok := config["vault"]; ok {
-			vaultPath, _ = vaultPathIface.(string)
-		}
-	}
-
-	if vaultPath == "" {
-		vaultPath = os.ExpandEnv("$HOME/.jn/vault") // Default value
-	} else if strings.HasPrefix(vaultPath, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Println("Failed to get home directory:", err)
-			return
-		}
-		vaultPath = filepath.Join(homeDir, vaultPath[2:])
-	} else if strings.HasPrefix(vaultPath, "$HOME/") {
-		vaultPath = os.ExpandEnv(vaultPath)
-	}
-
-	// Expand any env in vaultPath
-	vaultPath = os.ExpandEnv(vaultPath)
-	if strings.HasPrefix(vaultPath, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Println("Failed to get home directory:", err)
-			return
-		}
-		vaultPath = filepath.Join(homeDir, vaultPath[2:])
-	}
-
-	// 2. Terminal Raw Mode
+	vaultPath := resolveVaultPath(config)
 	oldState, err := utils.EnableRawMode(int(os.Stdin.Fd()))
 	if err != nil {
 		fmt.Println("Failed to enable raw mode:", err)
@@ -87,8 +56,7 @@ func Search() {
 	}
 	defer utils.DisableRawMode(int(os.Stdin.Fd()), oldState)
 
-	fmt.Print(colors.Bold + "Search: " + colors.Reset) // Initial prompt
-
+	fmt.Print(colors.Bold + "Search: " + colors.Reset)
 	var query string
 	var results []SearchResult
 
@@ -98,29 +66,24 @@ func Search() {
 			fmt.Println("Error reading char:", err)
 			break
 		}
-
-		if char == 13 { // Enter
-			break
-		} else if char == 9 { // TAB
+		switch char {
+		case 13: // Enter
+			return
+		case 9: // TAB
 			if len(results) > 0 {
-				query = ""
-				PreviewFile(results[0].FilePath) // show full content
-				break
+				PreviewFile(results[0].FilePath)
 			}
-		} else if char == 127 { // Backspace
+			return
+		case 127: // Backspace
 			if len(query) > 0 {
 				query = query[:len(query)-1]
 			}
-		} else {
+		default:
 			query += string(char)
 		}
 
-		// Clear screen
 		fmt.Print("\033[H\033[2J")
-
-		// Print search prompt
 		fmt.Printf(colors.Bold+"Search: "+colors.Reset+"%s\033[K\n\n", query)
-
 		if len(query) > 0 {
 			results = findMatchingFiles(vaultPath, query)
 			fmt.Print(colors.Blue + "--- Results ---" + colors.Reset + "\033[K\n")
@@ -128,10 +91,8 @@ func Search() {
 				fmt.Print(colors.Red + "No matches found." + colors.Reset + "\033[K\n")
 			} else {
 				for i, res := range results {
-					fileName := strings.TrimPrefix(res.FilePath, vaultPath+string(os.PathSeparator))
-					fmt.Printf(colors.Bold+"%2d. "+colors.Reset+colors.Magenta+"%s"+colors.Reset+"\033[K\n",
-						i+1,
-						fileName)
+					fn := strings.TrimPrefix(res.FilePath, vaultPath+string(os.PathSeparator))
+					fmt.Printf(colors.Bold+"%2d. "+colors.Reset+colors.Magenta+"%s"+colors.Reset+"\033[K\n", i+1, fn)
 					if res.Snippet != "" {
 						fmt.Printf("    %s\033[K\n", utils.HighlightMarkdown(res.Snippet))
 					}
@@ -142,80 +103,87 @@ func Search() {
 			fmt.Print(colors.DarkGray + "Type to search..." + colors.Reset + "\033[K\n")
 		}
 	}
+}
 
-	fmt.Printf("\n"+colors.DarkGray+"Final search query: %s"+colors.Reset+"\n", query)
+func resolveVaultPath(config map[string]interface{}) string {
+	var vp string
+	if config != nil {
+		if raw, ok := config["vault"]; ok {
+			vp, _ = raw.(string)
+		}
+	}
+	if vp == "" {
+		vp = os.ExpandEnv("$HOME/.jn/vault")
+	} else if strings.HasPrefix(vp, "~/") {
+		if hd, err := os.UserHomeDir(); err == nil {
+			vp = filepath.Join(hd, vp[2:])
+		}
+	} else {
+		vp = os.ExpandEnv(vp)
+	}
+	return vp
 }
 
 func findMatchingFiles(vaultPath, query string) []SearchResult {
 	var matches []SearchResult
-	lowerQuery := strings.ToLower(query)
-
+	lq := strings.ToLower(query)
 	filepath.Walk(vaultPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
+		if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 			return err
-		}
-		if info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
-			return nil
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil // Continue walking
+			return nil
 		}
-
-		contentStr := string(content)
-		lowerContent := strings.ToLower(contentStr)
-
-		fileNameMatch := strings.Contains(strings.ToLower(info.Name()), lowerQuery)
-		contentMatch := strings.Contains(lowerContent, lowerQuery)
-
-		if fileNameMatch || contentMatch {
+		s := string(content)
+		if strings.Contains(strings.ToLower(info.Name()), lq) ||
+			strings.Contains(strings.ToLower(s), lq) {
 			snippet := ""
-
-			// If content matched, grab first line containing query
-			if contentMatch {
-				lines := strings.Split(contentStr, "\n")
-				for _, line := range lines {
-					if strings.Contains(strings.ToLower(line), lowerQuery) {
-						snippet = strings.TrimSpace(line)
-						break
-					}
+			for _, line := range strings.Split(s, "\n") {
+				if strings.Contains(strings.ToLower(line), lq) {
+					snippet = strings.TrimSpace(line)
+					break
 				}
 			}
-
-			matches = append(matches, SearchResult{
-				FilePath: path,
-				Snippet:  snippet,
-			})
+			matches = append(matches, SearchResult{FilePath: path, Snippet: snippet})
 		}
 		return nil
 	})
 	return matches
 }
+
 func PreviewFile(path string) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Println("Error reading file:", err)
 		return
 	}
-
 	lines := strings.Split(string(content), "\n")
+	offset := 0
 
-	// Get terminal size
-	width, height, err := getTerminalSize(os.Stdout.Fd())
-	if err != nil {
-		width, height = 80, 24 // fallback
-	}
-
-	for i, line := range lines {
-		// Truncate overly long lines
-		if utf8.RuneCountInString(line) > width {
-			line = string([]rune(line)[:width-3]) + "..."
+	for {
+		width, height, err := getTerminalSize(os.Stdout.Fd())
+		if err != nil {
+			width, height = 80, 24
 		}
-		fmt.Println(line)
 
-		// Paginate based on screen height
-		if i+1 >= height-2 {
-			fmt.Print(colors.DarkGray + "-- More (TAB to scroll, q to quit) --" + colors.Reset + "\n")
+		fmt.Print("\033[H\033[2J")
+		for i := 0; i < height-2 && offset < len(lines); i++ {
+			line := lines[offset]
+			offset++
+			if utf8.RuneCountInString(line) > width {
+				line = string([]rune(line)[:width-3]) + "..."
+			}
+			fmt.Println(line)
+		}
+
+		if offset >= len(lines) {
+			break
+		}
+
+		fmt.Print(colors.DarkGray + "-- More (TAB to scroll, any other key to quit) --" + colors.Reset + "\n")
+		char, _, err := utils.ReadChar()
+		if err != nil || char != 9 {
 			break
 		}
 	}
