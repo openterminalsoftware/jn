@@ -34,6 +34,8 @@ func main() {
 		fmt.Println(commands.List())
 	} else if utils.Contains([]string{"search", "s"}, command) {
 		commands.Search()
+	} else if utils.Contains([]string{"version", "v"}, command) {
+		commands.Version()
 	} else {
 		prompts.Help()
 		os.Exit(1)

@@ -10,9 +10,9 @@ TODO list, list of commands, functionality, etc to be finished or implemented in
 - [x] Implement `delete` command
 - [x] Implement `list` command
 - [x] Implement `search` command
+- [x] Implement `version` command
 
 ### Not finished
-- [ ] Implement `version` command
 - [ ] Implement `config` command
 
 ## Planning to implement later
