@@ -3,6 +3,10 @@ An open-source markdown previewer and note-taking command line interface/applica
 
 [See development progress](TODO.md)
 
+## Demo
+
+https://github.com/user-attachments/assets/a0a9525e-12f7-45f9-9034-e71c12b28417
+
 # Documentation
 ## Installation
 Right now there are no pre-built [release](https://github.com/openterminalsoftware/jn/releases) binaries, so you'll need to build from source and install like so.
