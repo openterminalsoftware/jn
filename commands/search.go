@@ -2,11 +2,39 @@ package commands
 
 import (
 	"fmt"
+	"jn/colors"
 	"jn/utils"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"unicode/utf8"
+	"unsafe"
 )
+
+type winsize struct {
+	Row    uint16
+	Col    uint16
+	Xpixel uint16
+	Ypixel uint16
+}
+
+func getTerminalSize(fd uintptr) (width, height int, err error) {
+	ws := winsize{}
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		fd,
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(&ws)),
+	)
+	if errno != 0 {
+		err = errno
+		return
+	}
+	width = int(ws.Col)
+	height = int(ws.Row)
+	return
+}
 
 type SearchResult struct {
 	FilePath string
@@ -40,7 +68,7 @@ func Search() {
 		vaultPath = os.ExpandEnv(vaultPath)
 	}
 
-	// Ensure vaultPath exists and is expanded
+	// Expand any env in vaultPath
 	vaultPath = os.ExpandEnv(vaultPath)
 	if strings.HasPrefix(vaultPath, "~/") {
 		homeDir, err := os.UserHomeDir()
@@ -59,7 +87,7 @@ func Search() {
 	}
 	defer utils.DisableRawMode(int(os.Stdin.Fd()), oldState)
 
-	fmt.Print("Search: ") // Initial prompt
+	fmt.Print(colors.Bold + "Search: " + colors.Reset) // Initial prompt
 
 	var query string
 	var results []SearchResult
@@ -76,7 +104,7 @@ func Search() {
 		} else if char == 9 { // TAB
 			if len(results) > 0 {
 				query = ""
-				Preview(results[0].FilePath)
+				PreviewFile(results[0].FilePath) // show full content
 				break
 			}
 		} else if char == 127 { // Backspace
@@ -87,34 +115,35 @@ func Search() {
 			query += string(char)
 		}
 
+		// Clear screen
 		fmt.Print("\033[H\033[2J")
 
-		fmt.Printf("Search: %s\033[K\n", query)
-
-		fmt.Print("\033[3;1H")
+		// Print search prompt
+		fmt.Printf(colors.Bold+"Search: "+colors.Reset+"%s\033[K\n\n", query)
 
 		if len(query) > 0 {
 			results = findMatchingFiles(vaultPath, query)
-			fmt.Println("--- Results ---\033[K")
+			fmt.Print(colors.Blue + "--- Results ---" + colors.Reset + "\033[K\n")
 			if len(results) == 0 {
-				fmt.Println("No matches found.\033[K")
+				fmt.Print(colors.Red + "No matches found." + colors.Reset + "\033[K\n")
 			} else {
 				for i, res := range results {
-					fmt.Printf("%2d. %s\033[K\n",
+					fileName := strings.TrimPrefix(res.FilePath, vaultPath+string(os.PathSeparator))
+					fmt.Printf(colors.Bold+"%2d. "+colors.Reset+colors.Magenta+"%s"+colors.Reset+"\033[K\n",
 						i+1,
-						strings.TrimPrefix(res.FilePath, vaultPath+string(os.PathSeparator)))
+						fileName)
 					if res.Snippet != "" {
-						fmt.Printf("    %s\033[K\n", res.Snippet)
+						fmt.Printf("    %s\033[K\n", utils.HighlightMarkdown(res.Snippet))
 					}
 				}
 			}
 		} else {
-			fmt.Println("--- Results ---\033[K")
-			fmt.Println("Type to search...\033[K")
+			fmt.Print(colors.Blue + "--- Results ---" + colors.Reset + "\033[K\n")
+			fmt.Print(colors.DarkGray + "Type to search..." + colors.Reset + "\033[K\n")
 		}
 	}
 
-	fmt.Printf("\nFinal search query: %s\n", query)
+	fmt.Printf("\n"+colors.DarkGray+"Final search query: %s"+colors.Reset+"\n", query)
 }
 
 func findMatchingFiles(vaultPath, query string) []SearchResult {
@@ -125,42 +154,69 @@ func findMatchingFiles(vaultPath, query string) []SearchResult {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 			return nil
 		}
-		if !strings.HasSuffix(info.Name(), ".md") {
-			return nil
-		}
-
-		foundInFile := false
-
-		if strings.Contains(strings.ToLower(info.Name()), lowerQuery) {
-			matches = append(matches, SearchResult{
-				FilePath: path,
-				Snippet:  "",
-			})
-			foundInFile = true
-		}
-
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return nil // Continue walking
 		}
 
-		lines := strings.Split(string(content), "\n")
-		for _, line := range lines {
-			if strings.Contains(strings.ToLower(line), lowerQuery) {
-				if !foundInFile {
-					matches = append(matches, SearchResult{
-						FilePath: path,
-						Snippet:  strings.TrimLeft(line, " \t"),
-					})
-					foundInFile = true
+		contentStr := string(content)
+		lowerContent := strings.ToLower(contentStr)
+
+		fileNameMatch := strings.Contains(strings.ToLower(info.Name()), lowerQuery)
+		contentMatch := strings.Contains(lowerContent, lowerQuery)
+
+		if fileNameMatch || contentMatch {
+			snippet := ""
+
+			// If content matched, grab first line containing query
+			if contentMatch {
+				lines := strings.Split(contentStr, "\n")
+				for _, line := range lines {
+					if strings.Contains(strings.ToLower(line), lowerQuery) {
+						snippet = strings.TrimSpace(line)
+						break
+					}
 				}
-				break
 			}
+
+			matches = append(matches, SearchResult{
+				FilePath: path,
+				Snippet:  snippet,
+			})
 		}
 		return nil
 	})
 	return matches
+}
+func PreviewFile(path string) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	lines := strings.Split(string(content), "\n")
+
+	// Get terminal size
+	width, height, err := getTerminalSize(os.Stdout.Fd())
+	if err != nil {
+		width, height = 80, 24 // fallback
+	}
+
+	for i, line := range lines {
+		// Truncate overly long lines
+		if utf8.RuneCountInString(line) > width {
+			line = string([]rune(line)[:width-3]) + "..."
+		}
+		fmt.Println(line)
+
+		// Paginate based on screen height
+		if i+1 >= height-2 {
+			fmt.Print(colors.DarkGray + "-- More (TAB to scroll, q to quit) --" + colors.Reset + "\n")
+			break
+		}
+	}
 }
