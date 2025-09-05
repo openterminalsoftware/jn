@@ -11,9 +11,7 @@ TODO list, list of commands, functionality, etc to be finished or implemented in
 - [x] Implement `list` command
 - [x] Implement `search` command
 - [x] Implement `version` command
-
-### Not finished
-- [ ] Implement `config` command
+- [x] Implement `config` command
 
 ## Planning to implement later
 

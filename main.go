@@ -36,6 +36,8 @@ func main() {
 		commands.Search()
 	} else if utils.Contains([]string{"version", "v"}, command) {
 		commands.Version()
+	} else if utils.Contains([]string{"config", "conf"}, command) {
+		commands.Config()
 	} else {
 		prompts.Help()
 		os.Exit(1)

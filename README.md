@@ -172,3 +172,23 @@ You are using jn 1.0.0
 Created by OpenTerminalSoftware (OTS)
 https://github.com/openterminalsoftware/jn
 ```
+
+### `config`
+
+Configure `jn` settings. This command helps you create or update your configuration file.
+
+**Usage:**
+
+```bash
+jn config
+```
+
+This command will prompt you to enter configuration values, such as the path to your notes vault.
+
+**Example:**
+
+```bash
+$ jn config
+Enter vault path (default: ~/.jn/vault):
+Configuration saved to ~/.jn/config.json
+```
